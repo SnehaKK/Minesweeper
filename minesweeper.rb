@@ -116,7 +116,7 @@ class Tile
       #debugger
       self.face = :up unless (value == :m || state == :flagged)
       if value == 0 # Means it Tile is an interior square
-        state = :interior
+        self.state = :interior
         # keep revealing the neighbors until all the neighbors are only digits
         arr = neighbors
         arr.each do |neighbor_pos|
@@ -179,20 +179,22 @@ class Minesweeper
       puts "Actual board"
       board.display
 
-      puts "Flag or reveal? Enter f or r"
-      flag_or_reveal = gets.chomp
+      # puts "To Flag a tile enter: f[x,y]}, r[x,y] "
+      puts "Enter 'f' to flag or 'r' to reveal and 'e' to exit"
+      option = gets.chomp
+      Kernel.abort("Invalid input!!!! Aborting the game.") if option == 'e'
       puts "Get coordinate in the for x,y"
       pos_str = gets.chomp
       pos = pos_str.split(',').map(&:to_i)
 
       tile = board[*pos]
-      if flag_or_reveal == 'r'
+      if option == 'r'
         if tile.value == :m
           tile.face = :up
           bomb_revealed
         end
         tile.reveal unless tile.state == :flagged
-      elsif flag_or_reveal == 'f'
+      elsif option == 'f'
         flag(tile)
       end
     end
