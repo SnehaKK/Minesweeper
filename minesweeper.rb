@@ -1,6 +1,6 @@
+require 'byebug'
+
 class Board
-  # MAX_MINES = 10
-  # MIN_MINES = 20
   NUM_MINES = 10
 
   attr_reader :num_rows, :num_cols
@@ -11,13 +11,14 @@ class Board
     @num_rows = num_rows
     @num_cols = num_cols
     @mine_arr = []
+    initialize_board
     randomize_board
   end
 
   def initialize_board
     num_rows.times do |row|
       num_cols.times do |col|
-        self[row,col]= Tile.new(nil,self,[row,col])
+        self[row,col]= Tile.new(self,[row,col],0)
       end
     end
   end
@@ -31,17 +32,39 @@ class Board
   end
 
   def display
-    @grid.num_rows.times do |row|
+    num_rows.times do |row|
       str = ''
-      @grid.num_cols.times do |col|
+      num_cols.times do |col|
         tile = self[row,col]
-        str << tile.value
-        # if tile.value == :mine
-        #   puts *
+        # Check the tile state and update the symbols approrpiately
+        if tile.face == :down
+          str << ((tile.state == :flagged) ? 'F' : '*') + " "
+        else
+          str << char_for_tile_state(tile) + " "
+        end
       end
       puts str
     end
   end
+
+  def char_for_tile_state(tile)
+    case(tile.state)
+    when :interior ; "_"
+    else tile.value.to_s
+    end
+  end
+
+  def secret_display
+    num_rows.times do |row|
+      str = ''
+      num_cols.times do |col|
+        tile = self[row,col]
+        str << tile.value.to_s + " "
+      end
+      puts str
+    end
+  end
+
 
   private
   def randomize_board
@@ -64,31 +87,62 @@ class Board
   def place_numbers
     # Find neighbors of the Mine tile and increment the value
     mine_arr.each do |mine_pos|
-      self[*mine_pos].neighbors.each do |tile|
+      self[*mine_pos].neighbors.each do |tile_pos|
+        tile = self[*tile_pos]
+        # tile.value = 0 if tile.value.nil?
         tile.value += 1 unless tile.value == :m
       end
     end
   end
 
-
 end
-
-
 
 class Tile
 
   attr_reader :pos, :board
+  attr_accessor :value, :state, :face
   OFFSETS = [[-1,-1],[-1,0],[1,-1],[0,1],[1,1],[1,0],[-1,1],[0,-1]]
 
-  def initialize(value = nil, board, pos)
-    @state = :down
-    @value = value ? value : 0
+  def initialize(board, pos, value = 0)
+    @face = :down
+    @value = value
     @board = board
     @pos = pos
+    @state = :unexplored
   end
 
   def reveal
+    if face == :down
+      #debugger
+      self.face = :up unless (value == :m || state == :flagged)
+      if value == 0 # Means it Tile is an interior square
+        state = :interior
+        # keep revealing the neighbors until all the neighbors are only digits
+        arr = neighbors
+        arr.each do |neighbor_pos|
+          board[*neighbor_pos].reveal
+        end
+      end
+    end
+  end
 
+  def reveal1
+    if state == :down
+      state = :up
+      if value == :m
+        board.display
+        Kernel.abort("Clicked on a mine! Byebye")
+      else
+        if value == 0 # Means it Tile is an interior square
+          state = :interior
+          # keep revealing the neighbors until all the neighbors are only digits
+          arr = neighbors
+          arr.each do |neighbor_pos|
+            board[*neighbor_pos].reveal
+          end
+        end
+      end
+    end
   end
 
   def neighbor_bomb_count
@@ -112,25 +166,63 @@ class Tile
 end
 
 class Minesweeper
+  attr_reader :board
 
   def initialize
     @board = Board.new
   end
 
   def play
-    until game_over?
-      @board.display
+    # @board.display
+    until won?
+      board.secret_display
+      puts "Actual board"
+      board.display
+
       puts "Flag or reveal? Enter f or r"
       flag_or_reveal = gets.chomp
       puts "Get coordinate in the for x,y"
       pos_str = gets.chomp
       pos = pos_str.split(',').map(&:to_i)
 
+      tile = board[*pos]
+      if flag_or_reveal == 'r'
+        if tile.value == :m
+          tile.face = :up
+          bomb_revealed
+        end
+        tile.reveal unless tile.state == :flagged
+      elsif flag_or_reveal == 'f'
+        flag(tile)
+      end
     end
   end
 
-  def game_over?
-    bomb_revealed? || won?
+  def bomb_revealed
+    board.display
+    Kernel.abort("Clicked on a mine! Bye bye")
+  end
+
+  def flag(tile)
+    if tile.face != :up
+      if tile.state != :flagged
+        tile.state = :flagged
+      else
+        tile.state = :unexplored
+      end
+    end
+  end
+
+  def won?
+    board.num_rows.times do |row|
+      board.num_cols.times do |col|
+        tile = board[row,col]
+        return false if (tile.face == :down && tile.value.is_a?(Fixnum))
+      end
+    end
   end
 
 end
+
+game = Minesweeper.new
+game.play
